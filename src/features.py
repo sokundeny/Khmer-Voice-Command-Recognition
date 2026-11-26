@@ -1,5 +1,5 @@
-
 from pathlib import Path
+from typing import BinaryIO
 
 import librosa
 import numpy as np
@@ -12,14 +12,14 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 OUTPUT_PATH = PROJECT_ROOT / "data" / "processed" / "mfcc_features.csv"
 
 
-def extract_mfcc(file_path: str | Path) -> np.ndarray:
+def extract_mfcc(file_path: str | Path | BinaryIO) -> np.ndarray:
     """
     Extract 26 MFCC-based features from one recording:
     - Mean of 13 MFCC coefficients
     - Standard deviation of 13 MFCC coefficients
     """
 
-    audio, sr = preprocess_audio(file_path)
+    audio, sr = preprocess_audio(file_path, trim_silence=True)
 
     mfcc = librosa.feature.mfcc(
         y=audio,

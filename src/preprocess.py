@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import BinaryIO
 
 import librosa
 import numpy as np
@@ -13,7 +14,7 @@ RAW_DIR = PROJECT_ROOT / "data" / "raw"
 
 
 def preprocess_audio(
-    file_path: str | Path,
+    file_path: str | Path | BinaryIO,
     target_sr: int = TARGET_SR,
     trim_silence: bool = False,
 ) -> tuple[np.ndarray, int]:
@@ -26,10 +27,12 @@ def preprocess_audio(
     - Return audio in memory (do not save WAV files)
     """
 
-    file_path = Path(file_path)
-
-    if not file_path.is_file():
-        raise FileNotFoundError(f"Audio file not found: {file_path}")
+    name = "audio upload"
+    if isinstance(file_path, (str, Path)):
+        file_path = Path(file_path)
+        if not file_path.is_file():
+            raise FileNotFoundError(f"Audio file not found: {file_path}")
+        name = file_path.name
 
     # Load audio and standardize sample rate/channels.
     audio, sr = librosa.load(
@@ -38,26 +41,24 @@ def preprocess_audio(
         mono=True,
     )
 
-    # Optional: remove leading/trailing silence.
-    if trim_silence:
-        audio, _ = librosa.effects.trim(
-            audio,
-            top_db=25,
-        )
-
     # Check for invalid audio.
     if len(audio) == 0:
-        raise ValueError(f"Empty recording: {file_path.name}")
+        raise ValueError(f"Empty recording: {name}")
 
     if not np.all(np.isfinite(audio)):
-        raise ValueError(f"Invalid audio values: {file_path.name}")
+        raise ValueError(f"Invalid audio values: {name}")
 
     duration = len(audio) / sr
 
     if duration < 0.3:
         raise ValueError(
-            f"Recording too short ({duration:.2f}s): {file_path.name}"
+            f"Recording too short ({duration:.2f}s): {name}"
         )
+
+    if trim_silence:
+        if not np.any(audio):
+            raise ValueError(f"Silent recording: {name}")
+        audio, _ = librosa.effects.trim(audio, top_db=25)
 
     return audio.astype(np.float32), sr
 
@@ -85,7 +86,7 @@ def validate_dataset():
             try:
                 info = sf.info(file_path)
 
-                audio, sr = preprocess_audio(file_path)
+                audio, sr = preprocess_audio(file_path, trim_silence=True)
 
                 duration = len(audio) / sr
 
