@@ -57,11 +57,10 @@ def build_feature_dataset() -> pd.DataFrame:
             try:
                 features = extract_mfcc(file_path)
 
-                # Expected filename:
-                # speaker_001_bat_001.wav
+                # The word portion can contain underscores, e.g. yes_bart.
                 parts = file_path.stem.split("_")
 
-                if len(parts) != 4 or parts[0] != "speaker":
+                if len(parts) < 4 or parts[0] != "speaker" or not all(parts):
                     raise ValueError(
                         f"Invalid filename: {file_path.name}"
                     )
