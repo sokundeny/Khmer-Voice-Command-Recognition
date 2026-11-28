@@ -226,19 +226,34 @@ Audio will be standardized to 16 kHz mono and processed to reduce inconsistencie
 
 ### Feature Extraction
 
-MFCCs will be used to represent audio recordings numerically.
+MFCCs are used to represent audio recordings numerically (`src/features.py`).
 
-The initial feature extraction configuration is:
+Base MFCC settings:
 
 | Parameter | Value |
 |---|---|
 | Sample rate | 16,000 Hz |
 | MFCC coefficients | 13 |
 | Mel filters | 40 |
-| FFT size | 400 samples |
-| Hop length | 160 samples |
-| Feature representation | Mean and standard deviation |
-| Feature vector size | 26 |
+| FFT size | 400 samples (25 ms) |
+| Hop length | 160 samples (10 ms) |
+| Summary statistics | Mean and standard deviation |
+
+Each MFCC matrix (13 coefficients × N frames) is summarized into a fixed-length vector. There are two feature sets:
+
+| Preset | Description | Features |
+|---|---|---|
+| `baseline` (default) | Mean and std of 13 MFCCs over the whole recording | 13 × 2 = 26 |
+| `segments4` | The same, computed separately for 4 equal time segments of the word | 13 × 2 × 4 = 104 |
+
+Averaging over the whole recording loses the order of the sounds in a word. `segments4` keeps it by summarizing each quarter of the word separately. It is included as an optional alternative; the proposed pipeline uses `baseline`.
+
+Extract a feature set to `data/processed/`:
+
+```bash
+uv run python -m src.features                        # baseline -> mfcc_features.csv
+uv run python -m src.features --preset segments4     # -> mfcc_features_segments4.csv
+```
 
 For quantum models, dimensionality reduction may be used to map the extracted features to a small number of qubits.
 
