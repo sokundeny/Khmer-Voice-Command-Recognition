@@ -5,8 +5,8 @@ import librosa
 import numpy as np
 import soundfile as sf
 
-
 TARGET_SR = 16000
+TRIM_TOP_DB = 25
 LABELS = ("yes", "no", "go", "stop")
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -58,7 +58,7 @@ def preprocess_audio(
     if trim_silence:
         if not np.any(audio):
             raise ValueError(f"Silent recording: {name}")
-        audio, _ = librosa.effects.trim(audio, top_db=25)
+        audio, _ = librosa.effects.trim(audio, top_db=TRIM_TOP_DB)
 
     return audio.astype(np.float32), sr
 
