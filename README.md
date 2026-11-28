@@ -40,6 +40,7 @@ khmer-voice-recognition/
 │   ├── __init__.py
 │   ├── preprocess.py
 │   ├── features.py
+│   ├── reduce.py               # PCA reduction to qubit-sized features
 │   ├── train_svm.py            # Planned
 │   ├── train_qsvc.py           # Planned
 │   ├── train_vqc.py            # Planned
@@ -206,11 +207,15 @@ MFCC feature extraction
           v
 Speaker-independent dataset splitting
           |
+          v
+Dimensionality reduction
+(PCA -> 4 features, rescaled to [0, pi])
+          |
           +-------------------+
           |                   |
           v                   v
      Classical SVM       Quantum models
-                             VQC
+                          QSVC, VQC
           |                   |
           +---------+---------+
                     |
@@ -255,19 +260,60 @@ uv run python -m src.features                        # baseline -> mfcc_features
 uv run python -m src.features --preset segments4     # -> mfcc_features_segments4.csv
 ```
 
-For quantum models, dimensionality reduction may be used to map the extracted features to a small number of qubits.
+### Dimensionality Reduction
+
+The quantum models take one feature per qubit, so features are reduced before training (`src/reduce.py`):
+
+```text
+MFCC features (baseline, 26) -> StandardScaler -> PCA (4) -> rescale to [0, pi]
+```
+
+The final rescaling turns each value into a rotation angle for `Ry(x)` angle encoding. The SVM uses the same 4 values so all models are compared on identical inputs.
+
+```bash
+uv run python -m src.reduce                         # baseline, 4 components
+uv run python -m src.reduce --preset segments4      # use the 104 segment features instead
+```
+
+This creates:
+
+- `models/reducer.joblib`: the fitted transform and the feature settings it expects.
+- `data/processed/features_pca4.csv`: reduced features with a `split` column (`train` / `test`).
+
+The transform is fitted on the training recordings only. In training scripts:
+
+```python
+from src.reduce import load_reduced_features
+
+X_train, X_test, y_train, y_test = load_reduced_features()
+```
+
+For a single recording (for example in the web app, or to measure inference time):
+
+```python
+from src.reduce import load_reducer, transform_audio
+
+reducer = load_reducer()
+x = transform_audio("recording.wav", reducer)  # 4 angles in [0, pi]
+```
+
+The first call takes a few seconds while librosa compiles; later calls take about 10 ms. Run one call to warm up before measuring inference time.
 
 ### Dataset Splitting
 
-The dataset will be divided into training, validation, and testing subsets.
+`src/reduce.py` holds out 20% of the data for testing. With two or more speakers, whole speakers are held out so that no speaker appears in both training and testing. With only one speaker, recordings are split at random with the same class balance in both sets.
 
-Speaker-independent splitting will be used to avoid placing recordings from the same speaker in both training and testing sets.
+All models should use the split from `load_reduced_features()` so results are comparable. For validation (for example, tuning the SVM's `C`), use cross-validation on the training set only and keep the test set for the final comparison.
 
 ## 8. Models
 
 ### Support Vector Machine (SVM)
 
-The classical baseline will use scikit-learn's SVM implementation with standardized MFCC features.
+The classical baseline will use scikit-learn's SVM implementation with the reduced MFCC features.
+
+### Quantum Support Vector Classifier (QSVC)
+
+QSVC will use a quantum kernel computed from the reduced features.
 
 ### Variational Quantum Classifier (VQC)
 
